@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>DJMAX DJ CLASS Overlay</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+        body {
+            margin: 0; padding: 20px; overflow: hidden;
+            background-color: transparent;
+            font-family: 'Pretendard', sans-serif;
+            color: white; 
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.9);
+        }
+
+        .container { display: flex; flex-direction: column; gap: 10px; }
+        .top-line { display: flex; align-items: center; gap: 15px; }
+        .nickname { font-size: 32px; font-weight: 700; }
+        .button-mode { 
+            font-size: 24px; font-weight: 600; border: 3px solid white; 
+            border-radius: 50%; width: 55px; height: 55px; 
+            display: flex; justify-content: center; align-items: center; 
+        }
+        .bottom-line { display: flex; align-items: baseline; gap: 20px; }
+        .dj-class { font-size: 48px; font-weight: 900; letter-spacing: -1px; }
+        .dj-power { font-size: 36px; font-weight: 400; font-family: 'Courier New', Courier, monospace; }
+        
+        .loading { opacity: 0.6; }
+        .status-info { font-size: 14px; color: #ffffff; margin-top: 5px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="overlay-container" class="container loading">
+        <div class="top-line">
+            <div class="nickname">뉴김편집</div>
+            <div class="button-mode">8B</div>
+        </div>
+        <div class="bottom-line">
+            <div id="djClass" class="dj-class">대기 중...</div>
+            <div id="djPower" class="dj-power">0000.0000</div>
+        </div>
+        <div id="status-msg" class="status-info">최초 설정 중... (10초 대기)</div>
+    </div>
+
+    <script>
+        const NICKNAME = '뉴김편집';
+        const BUTTON = '8';
+
+        async function updateStats() {
+            const djClassEl = document.getElementById('djClass');
+            const djPowerEl = document.getElementById('djPower');
+            const statusEl = document.getElementById('status-msg');
+            const container = document.getElementById('overlay-container');
+
+            // 1. 기존 V-Archive API URL
+            const apiUrl = `https://v-archive.net/api/v2/archive/${encodeURIComponent(NICKNAME)}/djClass/${BUTTON}`;
+            
+            // 2. CORS Proxy를 통해 우회 (corsproxy.io 사용)
+            const targetUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+
+            try {
+                statusEl.innerText = "프록시를 통해 V-Archive 연결 중...";
+                const response = await fetch(targetUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                        // Content-Type 헤더는 프리플라이트(OPTIONS) 요청을 유발할 수 있어 제거했습니다.
+                    }
+                });
+
+                if (!response.ok) throw new Error(`서버 응답 에러 (${response.status})`);
+
+                const data = await response.json();
+
+                if (data.success) {
+                    djClassEl.innerText = data.djClass;
+                    if (data.djPowerConversion) {
+                        djPowerEl.innerText = data.djPowerConversion.toFixed(4);
+                    }
+                    container.classList.remove('loading');
+                    statusEl.innerText = "연결 성공";
+                    setTimeout(() => { statusEl.innerText = ""; }, 5000);
+                } else {
+                    throw new Error(data.message || "데이터 없음");
+                }
+            } catch (error) {
+                console.error(error);
+                djClassEl.innerText = "ERROR";
+                djPowerEl.innerText = "RETRY";
+                statusEl.innerText = `사유: ${error.message}`;
+            }
+        }
+
+        // 10초 대기 후 실행
+        setTimeout(() => {
+            updateStats();
+            setInterval(updateStats, 60000); // 1분마다 갱신
+        }, 10000);
+    </script>
+</body>
+</html>
